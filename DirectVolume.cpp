@@ -65,6 +65,12 @@ dev_t DirectVolume::getDiskDevice() {
     return MKDEV(mDiskMajor, mDiskMinor);
 }
 
+dev_t DirectVolume::getPartDevice() {
+    if (mPartIdx != -1)
+        return MKDEV(mDiskMajor, mPartMinors[mPartIdx -1]);
+    return getDiskDevice();
+}
+
 void DirectVolume::handleVolumeShared() {
     setState(Volume::State_Shared);
 }
