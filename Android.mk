@@ -24,7 +24,9 @@ LOCAL_SRC_FILES:=                                      \
                   Loop.cpp                             \
                   Devmapper.cpp                        \
                   ResponseCode.cpp                     \
-                  Xwarp.cpp
+                  Xwarp.cpp                            \
+                  ShareBackend.cpp                     \
+                  Ums.cpp
 
 LOCAL_MODULE:= vold
 
