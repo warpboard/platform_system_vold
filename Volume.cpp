@@ -139,6 +139,10 @@ dev_t Volume::getDiskDevice() {
     return MKDEV(0, 0);
 };
 
+dev_t Volume::getPartDevice() {
+    return MKDEV(0, 0);
+};
+
 void Volume::handleVolumeShared() {
 }
 
@@ -203,19 +207,28 @@ int Volume::formatVol() {
 
     char devicePath[255];
     dev_t diskNode = getDiskDevice();
-    dev_t partNode = MKDEV(MAJOR(diskNode), 1); // XXX: Hmmm
+    dev_t partNode = getPartDevice();
+    int initMbr = 0;
 
-    sprintf(devicePath, "/dev/block/vold/%d:%d",
-            MAJOR(diskNode), MINOR(diskNode));
+    if (diskNode == partNode) {
+        // only initialize MBR if no partition specified in vold.fstab
+	partNode = MKDEV(MAJOR(diskNode), 1); // XXX: Hmmm
+	initMbr = 1;
+    }
 
     if (mDebug) {
         SLOGI("Formatting volume %s (%s)", getLabel(), devicePath);
     }
     setState(Volume::State_Formatting);
 
-    if (initializeMbr(devicePath)) {
-        SLOGE("Failed to initialize MBR (%s)", strerror(errno));
-        goto err;
+    if (initMbr) {
+        sprintf(devicePath, "/dev/block/vold/%d:%d",
+                MAJOR(diskNode), MINOR(diskNode));
+
+        if (initializeMbr(devicePath)) {
+            SLOGE("Failed to initialize MBR (%s)", strerror(errno));
+            goto err;
+        }
     }
 
     sprintf(devicePath, "/dev/block/vold/%d:%d",
