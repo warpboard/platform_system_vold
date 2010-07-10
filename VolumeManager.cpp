@@ -23,8 +23,6 @@
 #include <sys/types.h>
 #include <sys/mount.h>
 
-#include <linux/kdev_t.h>
-
 #define LOG_TAG "Vold"
 
 #include <openssl/md5.h>
@@ -41,6 +39,7 @@
 #include "Devmapper.h"
 #include "Process.h"
 #include "Asec.h"
+#include "ShareBackend.h"
 
 VolumeManager *VolumeManager::sInstance = NULL;
 
@@ -766,18 +765,14 @@ int VolumeManager::simulate(const char *cmd, const char *arg) {
 
 int VolumeManager::shareVolume(const char *label, const char *method) {
     Volume *v = lookupVolume(label);
+    ShareBackend *b = ShareBackend::Instance(method);
 
     if (!v) {
         errno = ENOENT;
         return -1;
     }
 
-    /*
-     * Eventually, we'll want to support additional share back-ends,
-     * some of which may work while the media is mounted. For now,
-     * we just support UMS
-     */
-    if (strcmp(method, "ums")) {
+    if (!b) {
         errno = ENOSYS;
         return -1;
     }
@@ -787,51 +782,22 @@ int VolumeManager::shareVolume(const char *label, const char *method) {
         return -1;
     }
 
-    if (v->getState() != Volume::State_Idle) {
-        // You need to unmount manually befoe sharing
-        errno = EBUSY;
-        return -1;
-    }
-
-    dev_t d = v->getPartDevice();
-    if ((MAJOR(d) == 0) && (MINOR(d) == 0)) {
-        // This volume does not support raw disk access
-        errno = EINVAL;
-        return -1;
-    }
-
-    int fd;
-    char nodepath[255];
-    snprintf(nodepath,
-             sizeof(nodepath), "/dev/block/vold/%d:%d",
-             MAJOR(d), MINOR(d));
-
-    if ((fd = open("/sys/devices/platform/usb_mass_storage/lun0/file",
-                   O_WRONLY)) < 0) {
-        SLOGE("Unable to open ums lunfile (%s)", strerror(errno));
-        return -1;
-    }
-
-    if (write(fd, nodepath, strlen(nodepath)) < 0) {
-        SLOGE("Unable to write to ums lunfile (%s)", strerror(errno));
-        close(fd);
-        return -1;
-    }
-
-    close(fd);
-    v->handleVolumeShared();
-    return 0;
+    int ret = b->shareVolume(v);
+    if (ret == 0)
+        v->handleVolumeShared();
+    return ret;
 }
 
 int VolumeManager::unshareVolume(const char *label, const char *method) {
     Volume *v = lookupVolume(label);
+    ShareBackend *b = ShareBackend::Instance(method);
 
     if (!v) {
         errno = ENOENT;
         return -1;
     }
 
-    if (strcmp(method, "ums")) {
+    if (!b) {
         errno = ENOSYS;
         return -1;
     }
@@ -841,22 +807,10 @@ int VolumeManager::unshareVolume(const char *label, const char *method) {
         return -1;
     }
 
-    int fd;
-    if ((fd = open("/sys/devices/platform/usb_mass_storage/lun0/file", O_WRONLY)) < 0) {
-        SLOGE("Unable to open ums lunfile (%s)", strerror(errno));
-        return -1;
-    }
-
-    char ch = 0;
-    if (write(fd, &ch, 1) < 0) {
-        SLOGE("Unable to write to ums lunfile (%s)", strerror(errno));
-        close(fd);
-        return -1;
-    }
-
-    close(fd);
-    v->handleVolumeUnshared();
-    return 0;
+    int ret = b->unshareVolume(v);
+    if (ret == 0)
+        v->handleVolumeUnshared();
+    return ret;
 }
 
 int VolumeManager::unmountVolume(const char *label, bool force) {
