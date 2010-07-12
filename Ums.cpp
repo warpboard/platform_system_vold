@@ -45,32 +45,48 @@ int Ums::shareVolume(Volume *v) {
         return -1;
     }
 
-    int fd;
     char nodepath[255];
     snprintf(nodepath,
              sizeof(nodepath), "/dev/block/vold/%d:%d",
              MAJOR(d), MINOR(d));
 
-    if ((fd = open("/sys/devices/platform/usb_mass_storage/lun0/file",
-                   O_WRONLY)) < 0) {
+    int fd;
+    int lunNum = allocateLun(v);
+    char lunpath[255];
+    snprintf(lunpath, sizeof(lunpath),
+             "/sys/devices/platform/usb_mass_storage/lun%d/file", lunNum);
+    if ((fd = open(lunpath, O_WRONLY)) < 0) {
         SLOGE("Unable to open ums lunfile (%s)", strerror(errno));
-        return -1;
+        goto err_open;
     }
 
     if (write(fd, nodepath, strlen(nodepath)) < 0) {
         SLOGE("Unable to write to ums lunfile (%s)", strerror(errno));
-        close(fd);
-        return -1;
+        goto err_write;
     }
 
     close(fd);
     return 0;
+
+err_write:
+    close(fd);
+err_open:
+    freeLun(v);
+    return -1;
 }
 
 int Ums::unshareVolume(Volume *v) {
+    int lunNum = freeLun(v);
+    if (lunNum == -1) {
+        SLOGE("No lun allocated for volume %s", v->getLabel());
+        return -1;
+    }
+
     int fd;
-    if ((fd = open("/sys/devices/platform/usb_mass_storage/lun0/file",
-                   O_WRONLY)) < 0) {
+    char lunpath[64];
+    snprintf(lunpath, sizeof(lunpath),
+             "/sys/devices/platform/usb_mass_storage/lun%d/file", lunNum);
+    if ((fd = open(lunpath, O_WRONLY)) < 0) {
         SLOGE("Unable to open ums lunfile (%s)", strerror(errno));
         return -1;
     }
@@ -84,4 +100,42 @@ int Ums::unshareVolume(Volume *v) {
 
     close(fd);
     return 0;
+}
+
+int Ums::allocateLun(Volume *v) {
+    int lunNum = 0;
+    UmsLunCollection::iterator i;
+
+    /*
+     * mLuns must be kept sorted so that we can accurately determine
+     * the lowest free lun number
+     */
+    for (i = mLuns.begin(); i != mLuns.end(); i++) {
+        if (lunNum != (*i)->lunNum)
+            break;
+        lunNum++;
+    }
+
+    UmsLun *l = new UmsLun;
+    l->lunNum = lunNum;
+    l->v = v;
+    mLuns.insert(i, l);
+
+    return lunNum;
+}
+
+// returns the lun number that had been allocated to the volume, or -1 if none
+int Ums::freeLun(Volume *v) {
+    UmsLunCollection::iterator i;
+
+    for (i = mLuns.begin(); i != mLuns.end(); i++) {
+        if (v == (*i)->v) {
+            UmsLun *l = (*i);
+            int lunNum = l->lunNum;
+            mLuns.erase(i);
+            delete l;
+            return lunNum;
+        }
+    }
+    return -1;
 }

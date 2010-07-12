@@ -20,12 +20,25 @@
 #include "Volume.h"
 #include "ShareBackend.h"
 
+typedef struct UmsLun {
+    int lunNum;
+    Volume *v;
+} UmsLun;
+
+typedef android::List<UmsLun *> UmsLunCollection;
+
 class Ums : public ShareBackend {
 public:
     const char *name() { return "ums"; }
 
     int shareVolume(Volume *v);
     int unshareVolume(Volume *v);
+
+protected:
+    UmsLunCollection mLuns;
+
+    int allocateLun(Volume *v);
+    int freeLun(Volume *v);
 };
 
 #endif
