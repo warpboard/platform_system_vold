@@ -207,15 +207,11 @@ static int process_config(VolumeManager *vm) {
                 SLOGE("Error parsing partition");
                 goto out_syntax;
             }
-            if (strcmp(part, "auto") && atoi(part) == 0) {
+            if (int idx = (strcmp(part, "auto") ? atoi(part) : -1)) {
+                dv = new DirectVolume(vm, label, mount_point, idx);
+            } else {
                 SLOGE("Partition must either be 'auto' or 1 based index instead of '%s'", part);
                 goto out_syntax;
-            }
-
-            if (!strcmp(part, "auto")) {
-                dv = new DirectVolume(vm, label, mount_point, -1);
-            } else {
-                dv = new DirectVolume(vm, label, mount_point, atoi(part));
             }
 
             while((sysfs_path = strsep(&next, " \t"))) {
