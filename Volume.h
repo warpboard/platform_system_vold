@@ -93,7 +93,7 @@ protected:
     int createDeviceNode(const char *path, int major, int minor);
 
 private:
-    int initializeMbr(const char *deviceNode);
+    int initializeMbr(const char *deviceNode, unsigned int diskSizeMB);
     bool isMountpointMounted(const char *path);
     int createBindMounts();
     int doUnmount(const char *path, bool force);

@@ -29,7 +29,6 @@
 
 #include <linux/kdev_t.h>
 #include <linux/fs.h>
-
 #include <cutils/properties.h>
 
 #include <diskconfig/diskconfig.h>
@@ -229,12 +228,25 @@ int Volume::formatVol() {
     setState(Volume::State_Formatting);
 
     int ret = -1;
+    int fd;
+    uint64_t diskSize;
+
+    if ((fd = open(devicePath, O_RDWR)) < 0) {
+        SLOGE("Cannot open devicePath '%s' (errno=%s)", devicePath, strerror(errno));
+        goto err;
+    }
+
+    if (ioctl(fd, BLKGETSIZE64, &diskSize) < 0) {
+        SLOGE("Could not get block device size (errno=%s)", strerror(errno));
+        goto err;
+    }
+
     // Only initialize the MBR if we are formatting the entire device
     if (formatEntireDevice) {
         sprintf(devicePath, "/dev/block/vold/%d:%d",
                 MAJOR(diskNode), MINOR(diskNode));
 
-        if (initializeMbr(devicePath)) {
+        if (initializeMbr(devicePath, diskSize/(1024*1024))) {
             SLOGE("Failed to initialize MBR (%s)", strerror(errno));
             goto err;
         }
@@ -247,15 +259,15 @@ int Volume::formatVol() {
         SLOGI("Formatting volume %s (%s)", getLabel(), devicePath);
     }
 
-    if (Fat::format(devicePath, 0)) {
+    if (Fat::format(devicePath, diskSize/512)) {
         SLOGE("Failed to format (%s)", strerror(errno));
         goto err;
     }
 
     ret = 0;
-
 err:
     setState(Volume::State_Idle);
+    close(fd);
     return ret;
 }
 
@@ -685,7 +697,8 @@ out_nomedia:
     setState(Volume::State_NoMedia);
     return -1;
 }
-int Volume::initializeMbr(const char *deviceNode) {
+
+int Volume::initializeMbr(const char *deviceNode, unsigned int diskSizeMB) {
     struct disk_info dinfo;
 
     memset(&dinfo, 0, sizeof(dinfo));
@@ -707,7 +720,19 @@ int Volume::initializeMbr(const char *deviceNode) {
 
     pinfo->name = strdup("android_sdcard");
     pinfo->flags |= PART_ACTIVE_FLAG;
-    pinfo->type = PC_PART_TYPE_FAT32;
+
+    if (diskSizeMB < 32) {
+        pinfo->type = PC_PART_TYPE_FAT12_32MB;
+    } else if (diskSizeMB < 64) {
+        pinfo->type = PC_PART_TYPE_FAT12_64MB;
+    } else if (diskSizeMB < 2 * 1024) {
+        pinfo->type = PC_PART_TYPE_FAT16;
+    } else if (diskSizeMB < 8 * 1024) {
+        pinfo->type = PC_PART_TYPE_FAT32_8GB;
+    } else {
+        pinfo->type = PC_PART_TYPE_FAT32;
+    }
+
     pinfo->len_kb = -1;
 
     int rc = apply_disk_config(&dinfo, 0);
