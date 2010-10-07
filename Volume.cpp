@@ -203,7 +203,7 @@ int Volume::formatVol() {
 
     char devicePath[255];
     dev_t diskNode = getDiskDevice();
-    dev_t partNode = MKDEV(MAJOR(diskNode), 1); // XXX: Hmmm
+    dev_t partNode = MKDEV(MAJOR(diskNode), MINOR(diskNode));
 
     sprintf(devicePath, "/dev/block/vold/%d:%d",
             MAJOR(diskNode), MINOR(diskNode));
