@@ -86,7 +86,8 @@ int DirectVolume::handleBlockEvent(NetlinkEvent *evt) {
 
     PathCollection::iterator  it;
     for (it = mPaths->begin(); it != mPaths->end(); ++it) {
-        if (!strncmp(dp, *it, strlen(*it))) {
+        size_t len = strlen(*it);
+        if (!strncmp(dp, *it, len) && (dp[len] == '\0' || dp[len] == '/')) {
             /* We can handle this disk */
             int action = evt->getAction();
             const char *devtype = evt->findParam("DEVTYPE");
