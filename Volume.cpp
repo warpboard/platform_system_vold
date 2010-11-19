@@ -105,6 +105,7 @@ Volume::Volume(VolumeManager *vm, const char *label, const char *mount_point) {
     mMountpoint = strdup(mount_point);
     mState = Volume::State_Init;
     mCurrentlyMountedKdev = -1;
+    mLastMountedKdev = 0;
 }
 
 Volume::~Volume() {
@@ -203,33 +204,40 @@ int Volume::formatVol() {
 
     char devicePath[255];
     dev_t diskNode = getDiskDevice();
-    dev_t partNode = MKDEV(MAJOR(diskNode), 1); // XXX: Hmmm
-
-    sprintf(devicePath, "/dev/block/vold/%d:%d",
-            MAJOR(diskNode), MINOR(diskNode));
+    dev_t partNode;
 
     if (mDebug) {
         SLOGI("Formatting volume %s (%s)", getLabel(), devicePath);
     }
     setState(Volume::State_Formatting);
 
-    int ret = -1;
-    if (initializeMbr(devicePath)) {
-        SLOGE("Failed to initialize MBR (%s)", strerror(errno));
-        goto err;
+    if (!mLastMountedKdev) {
+        dev_t deviceNodes[2];
+        int n = getDeviceNodes(deviceNodes, 2);
+        // initialize MBR if no partition, or has multiple partitions
+        // but none is selected
+        if ((diskNode == deviceNodes[0]) || (n > 1)) {
+            sprintf(devicePath, "/dev/block/vold/%d:%d",
+                    MAJOR(diskNode), MINOR(diskNode));
+            if (initializeMbr(devicePath)) {
+                SLOGE("Failed to initialize MBR (%s)", strerror(errno));
+                partNode = diskNode; // try to use whole disk
+            } else {
+                partNode = MKDEV(MAJOR(diskNode), MINOR(diskNode) + 1);
+            }
+        } else {
+            partNode = deviceNodes[0];
+        }
+    } else {
+        partNode = mLastMountedKdev;
     }
 
     sprintf(devicePath, "/dev/block/vold/%d:%d",
             MAJOR(partNode), MINOR(partNode));
 
-    if (Fat::format(devicePath, 0)) {
-        SLOGE("Failed to format (%s)", strerror(errno));
-        goto err;
-    }
+    int ret = Fat::format(devicePath, 0);
+    SLOGE_IF(ret, "Failed to format (%s)", strerror(errno));
 
-    ret = 0;
-
-err:
     setState(Volume::State_Idle);
     return ret;
 }
@@ -347,7 +355,7 @@ int Volume::mountVol() {
             return -1;
         }
         setState(Volume::State_Mounted);
-        mCurrentlyMountedKdev = deviceNodes[i];
+        mLastMountedKdev = mCurrentlyMountedKdev = deviceNodes[i];
         return 0;
     }
 

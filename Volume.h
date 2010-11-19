@@ -54,6 +54,10 @@ protected:
      * The major/minor tuple of the currently mounted filesystem.
      */
     dev_t mCurrentlyMountedKdev;
+    /*
+     * The major/minor tuple of the last mounted filesystem.
+     */
+    dev_t mLastMountedKdev;
 
 public:
     Volume(VolumeManager *vm, const char *label, const char *mount_point);
