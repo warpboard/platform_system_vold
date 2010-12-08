@@ -203,7 +203,6 @@ int Volume::formatVol() {
 
     char devicePath[255];
     dev_t diskNode = getDiskDevice();
-    dev_t partNode = MKDEV(MAJOR(diskNode), 1); // XXX: Hmmm
 
     sprintf(devicePath, "/dev/block/vold/%d:%d",
             MAJOR(diskNode), MINOR(diskNode));
@@ -219,11 +218,16 @@ int Volume::formatVol() {
         goto err;
     }
 
-    sprintf(devicePath, "/dev/block/vold/%d:%d",
-            MAJOR(partNode), MINOR(partNode));
+    dev_t deviceNodes;
+    getDeviceNodes((dev_t *) &deviceNodes, 1);
+    sprintf(devicePath, "/dev/block/vold/%d:%d", MAJOR(deviceNodes),
+                                                      MINOR(deviceNodes));
+    if (mDebug) {
+        SLOGI("%s being considered for formatting", devicePath);
+    }
 
     if (Fat::format(devicePath, 0)) {
-        SLOGE("Failed to format (%s)", strerror(errno));
+        SLOGE("Failed to format %s err(%s)", devicePath, strerror(errno));
         goto err;
     }
 
