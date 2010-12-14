@@ -50,6 +50,7 @@ public:
 
 protected:
     int getDeviceNodes(dev_t *devs, int max);
+    void broadcastDiskAdded();
 
 private:
     void handleDiskAdded(const char *devpath, NetlinkEvent *evt);

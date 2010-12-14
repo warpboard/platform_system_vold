@@ -132,6 +132,18 @@ int DirectVolume::handleBlockEvent(NetlinkEvent *evt) {
     return -1;
 }
 
+void DirectVolume::broadcastDiskAdded()
+{
+    setState(Volume::State_Idle);
+
+    char msg[255];
+
+    snprintf(msg, sizeof(msg), "Volume %s %s disk inserted (%d:%d)",
+             getLabel(), getMountpoint(), mDiskMajor, mDiskMinor);
+    mVm->getBroadcaster()->sendBroadcast(ResponseCode::VolumeDiskInserted,
+                                             msg, false);
+}
+
 void DirectVolume::handleDiskAdded(const char *devpath, NetlinkEvent *evt) {
     mDiskMajor = atoi(evt->findParam("MAJOR"));
     mDiskMinor = atoi(evt->findParam("MINOR"));
@@ -145,24 +157,17 @@ void DirectVolume::handleDiskAdded(const char *devpath, NetlinkEvent *evt) {
     }
     mPendingPartsCount = mDiskNumParts;
 
-    char msg[255];
-
     if (mDiskNumParts == 0) {
 #ifdef PARTITION_DEBUG
         SLOGD("Dv::diskIns - No partitions - good to go son!");
 #endif
-        setState(Volume::State_Idle);
+        broadcastDiskAdded();
     } else {
 #ifdef PARTITION_DEBUG
         SLOGD("Dv::diskIns - waiting for %d partitions", mDiskNumParts);
 #endif
         setState(Volume::State_Pending);
     }
-
-    snprintf(msg, sizeof(msg), "Volume %s %s disk inserted (%d:%d)",
-             getLabel(), getMountpoint(), mDiskMajor, mDiskMinor);
-    mVm->getBroadcaster()->sendBroadcast(ResponseCode::VolumeDiskInserted,
-                                             msg, false);
 }
 
 void DirectVolume::handlePartitionAdded(const char *devpath, NetlinkEvent *evt) {
@@ -203,7 +208,7 @@ void DirectVolume::handlePartitionAdded(const char *devpath, NetlinkEvent *evt) 
         SLOGD("Dv:partAdd: Got all partitions - ready to rock!");
 #endif
         if (getState() != Volume::State_Formatting) {
-            setState(Volume::State_Idle);
+            broadcastDiskAdded();
         }
     } else {
 #ifdef PARTITION_DEBUG
