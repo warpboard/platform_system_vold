@@ -255,6 +255,13 @@ void DirectVolume::handleDiskRemoved(const char *devpath, NetlinkEvent *evt) {
     char msg[255];
 
     SLOGD("Volume %s %s disk %d:%d removed\n", getLabel(), getMountpoint(), major, minor);
+
+    /*
+     * if the disk has only one partition, handle the partition-like cleanup work here
+     */
+    if (mDiskNumParts == 0)
+        handlePartitionRemoved(devpath, evt);
+
     snprintf(msg, sizeof(msg), "Volume %s %s disk removed (%d:%d)",
              getLabel(), getMountpoint(), major, minor);
     mVm->getBroadcaster()->sendBroadcast(ResponseCode::VolumeDiskRemoved,
