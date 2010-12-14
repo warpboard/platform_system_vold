@@ -40,7 +40,7 @@ DirectVolume::DirectVolume(VolumeManager *vm, const char *label,
     mPaths = new PathCollection();
     for (int i = 0; i < MAX_PARTITIONS; i++)
         mPartMinors[i] = -1;
-    mPendingPartMap = 0;
+    mPendingPartsCount = 0;
     mDiskMajor = -1;
     mDiskMinor = -1;
     mDiskNumParts = 0;
@@ -141,17 +141,11 @@ void DirectVolume::handleDiskAdded(const char *devpath, NetlinkEvent *evt) {
         mDiskNumParts = atoi(tmp);
     } else {
         SLOGW("Kernel block uevent missing 'NPARTS'");
-        mDiskNumParts = 1;
+        mDiskNumParts = 0;
     }
+    mPendingPartsCount = mDiskNumParts;
 
     char msg[255];
-
-    int partmask = 0;
-    int i;
-    for (i = 1; i <= mDiskNumParts; i++) {
-        partmask |= (1 << i);
-    }
-    mPendingPartMap = partmask;
 
     if (mDiskNumParts == 0) {
 #ifdef PARTITION_DEBUG
@@ -160,8 +154,7 @@ void DirectVolume::handleDiskAdded(const char *devpath, NetlinkEvent *evt) {
         setState(Volume::State_Idle);
     } else {
 #ifdef PARTITION_DEBUG
-        SLOGD("Dv::diskIns - waiting for %d partitions (mask 0x%x)",
-             mDiskNumParts, mPendingPartMap);
+        SLOGD("Dv::diskIns - waiting for %d partitions", mDiskNumParts);
 #endif
         setState(Volume::State_Pending);
     }
@@ -203,9 +196,9 @@ void DirectVolume::handlePartitionAdded(const char *devpath, NetlinkEvent *evt) 
     } else {
         mPartMinors[part_num -1] = minor;
     }
-    mPendingPartMap &= ~(1 << part_num);
+    --mPendingPartsCount;
 
-    if (!mPendingPartMap) {
+    if (!mPendingPartsCount) {
 #ifdef PARTITION_DEBUG
         SLOGD("Dv:partAdd: Got all partitions - ready to rock!");
 #endif
@@ -214,7 +207,7 @@ void DirectVolume::handlePartitionAdded(const char *devpath, NetlinkEvent *evt) 
         }
     } else {
 #ifdef PARTITION_DEBUG
-        SLOGD("Dv:partAdd: pending mask now = 0x%x", mPendingPartMap);
+        SLOGD("Dv:partAdd: pending part now = %d", mPendingPartsCount);
 #endif
     }
 }
@@ -233,15 +226,9 @@ void DirectVolume::handleDiskChanged(const char *devpath, NetlinkEvent *evt) {
         mDiskNumParts = atoi(tmp);
     } else {
         SLOGW("Kernel block uevent missing 'NPARTS'");
-        mDiskNumParts = 1;
+        mDiskNumParts = 0;
     }
-
-    int partmask = 0;
-    int i;
-    for (i = 1; i <= mDiskNumParts; i++) {
-        partmask |= (1 << i);
-    }
-    mPendingPartMap = partmask;
+    mPendingPartsCount = mDiskNumParts;
 
     if (getState() != Volume::State_Formatting) {
         if (mDiskNumParts == 0) {
