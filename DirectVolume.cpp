@@ -108,6 +108,16 @@ int DirectVolume::handleBlockEvent(NetlinkEvent *evt) {
                 } else {
                     handlePartitionAdded(dp, evt);
                 }
+                /* Send notification iff disk is ready (ie all partitions found) */
+                if (getState() == Volume::State_Idle) {
+                    char msg[255];
+
+                    snprintf(msg, sizeof(msg),
+                             "Volume %s %s disk inserted (%d:%d)", getLabel(),
+                             getMountpoint(), mDiskMajor, mDiskMinor);
+                    mVm->getBroadcaster()->sendBroadcast(ResponseCode::VolumeDiskInserted,
+                                                         msg, false);
+                }
             } else if (action == NetlinkEvent::NlActionRemove) {
                 if (!strcmp(devtype, "disk")) {
                     handleDiskRemoved(dp, evt);
@@ -143,8 +153,6 @@ void DirectVolume::handleDiskAdded(const char *devpath, NetlinkEvent *evt) {
         mDiskNumParts = 1;
     }
 
-    char msg[255];
-
     int partmask = 0;
     int i;
     for (i = 1; i <= mDiskNumParts; i++) {
@@ -164,11 +172,6 @@ void DirectVolume::handleDiskAdded(const char *devpath, NetlinkEvent *evt) {
 #endif
         setState(Volume::State_Pending);
     }
-
-    snprintf(msg, sizeof(msg), "Volume %s %s disk inserted (%d:%d)",
-             getLabel(), getMountpoint(), mDiskMajor, mDiskMinor);
-    mVm->getBroadcaster()->sendBroadcast(ResponseCode::VolumeDiskInserted,
-                                             msg, false);
 }
 
 void DirectVolume::handlePartitionAdded(const char *devpath, NetlinkEvent *evt) {
