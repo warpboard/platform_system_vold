@@ -227,7 +227,7 @@ int Volume::formatVol() {
 
         if (initializeMbr(devicePath)) {
             SLOGE("Failed to initialize MBR (%s)", strerror(errno));
-            goto err;
+            partNode = diskNode;
         }
     }
 
