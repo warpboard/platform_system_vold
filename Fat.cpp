@@ -156,25 +156,28 @@ int Fat::format(const char *fsPath, unsigned int numSectors) {
 
     args[0] = MKDOSFS_PATH;
     args[1] = "-F";
-    args[2] = "32";
+    if (numSectors <= (unsigned int)64*(1024*1024/512))
+        args[2] = "12";
+    else if (numSectors <= (unsigned int)2*1024*(1024*1024/512))
+        args[2] = "16";
+    else
+        args[2] = "32";
     args[3] = "-O";
     args[4] = "android";
-    args[5] = "-c";
-    args[6] = "8";
 
     if (numSectors) {
         char tmp[32];
         snprintf(tmp, sizeof(tmp), "%u", numSectors);
         const char *size = tmp;
-        args[7] = "-s";
-        args[8] = size;
-        args[9] = fsPath;
-        args[10] = NULL;
-        rc = logwrap(11, args, 1);
-    } else {
+        args[5] = "-s";
+        args[6] = size;
         args[7] = fsPath;
         args[8] = NULL;
         rc = logwrap(9, args, 1);
+    } else {
+        args[5] = fsPath;
+        args[6] = NULL;
+        rc = logwrap(7, args, 1);
     }
 
     if (rc == 0) {

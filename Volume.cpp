@@ -27,7 +27,7 @@
 #include <sys/mount.h>
 
 #include <linux/kdev_t.h>
-
+#include <linux/fs.h>
 #include <cutils/properties.h>
 
 #include <diskconfig/diskconfig.h>
@@ -219,12 +219,30 @@ int Volume::formatVol() {
     setState(Volume::State_Formatting);
 
     int ret = -1;
+    int fd = -1;
+    uint64_t diskSize;
+
+    sprintf(devicePath, "/dev/block/vold/%d:%d",
+            MAJOR(diskNode), MINOR(diskNode));
+
+    if ((fd = open(devicePath, O_RDONLY)) < 0) {
+        SLOGE("Cannot open devicePath '%s' (errno=%d)", devicePath, strerror(errno));
+        goto err;
+    }
+
+    if (ioctl(fd, BLKGETSIZE64, &diskSize) < 0) {
+        SLOGE("Could not get block device size (errno=%d)", strerror(errno));
+        goto err;
+    }
+    close(fd);
+    fd = -1;
+
     // Only initialize the MBR if we are formatting the entire device
     if (formatEntireDevice) {
         sprintf(devicePath, "/dev/block/vold/%d:%d",
                 MAJOR(diskNode), MINOR(diskNode));
 
-        if (initializeMbr(devicePath)) {
+        if (initializeMbr(devicePath, diskSize/(1024*1024))) {
             SLOGE("Failed to initialize MBR (%s)", strerror(errno));
             goto err;
         }
@@ -237,7 +255,18 @@ int Volume::formatVol() {
         SLOGI("Formatting volume %s (%s)", getLabel(), devicePath);
     }
 
-    if (Fat::format(devicePath, 0)) {
+    if ((fd = open(devicePath, O_RDONLY)) < 0) {
+        SLOGE("Cannot open devicePath '%s' (errno=%d)", devicePath, strerror(errno));
+        goto err;
+    }
+
+    u_int bsec;
+    if (ioctl(fd, BLKGETSIZE, &bsec) < 0) {
+        SLOGE("Could not get block device size (errno=%d)", strerror(errno));
+        goto err;
+    }
+
+    if (Fat::format(devicePath, bsec)) {
         SLOGE("Failed to format (%s)", strerror(errno));
         goto err;
     }
@@ -245,6 +274,9 @@ int Volume::formatVol() {
     ret = 0;
 
 err:
+    if (fd > 0) {
+      close(fd);
+    }
     setState(Volume::State_Idle);
     return ret;
 }
@@ -588,7 +620,7 @@ out_nomedia:
     setState(Volume::State_NoMedia);
     return -1;
 }
-int Volume::initializeMbr(const char *deviceNode) {
+int Volume::initializeMbr(const char *deviceNode, unsigned int diskSizeMB) {
     struct disk_info dinfo;
 
     memset(&dinfo, 0, sizeof(dinfo));
@@ -610,7 +642,19 @@ int Volume::initializeMbr(const char *deviceNode) {
 
     pinfo->name = strdup("android_sdcard");
     pinfo->flags |= PART_ACTIVE_FLAG;
-    pinfo->type = PC_PART_TYPE_FAT32;
+
+    if (diskSizeMB < 32) {
+        pinfo->type = PC_PART_TYPE_FAT12_32MB;
+    } else if (diskSizeMB < 64) {
+        pinfo->type = PC_PART_TYPE_FAT12_64MB;
+    } else if (diskSizeMB < 2 * 1024) {
+        pinfo->type = PC_PART_TYPE_FAT16;
+    } else if (diskSizeMB < 8 * 1024) {
+        pinfo->type = PC_PART_TYPE_FAT32_8GB;
+    } else {
+        pinfo->type = PC_PART_TYPE_FAT32;
+    }
+
     pinfo->len_kb = -1;
 
     int rc = apply_disk_config(&dinfo, 0);
