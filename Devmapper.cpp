@@ -120,7 +120,8 @@ void Devmapper::ioctlInit(struct dm_ioctl *io, size_t dataSize,
     io->version[2] = 0;
     io->flags = flags;
     if (name) {
-        strncpy(io->name, name, sizeof(io->name));
+        strncpy(io->name, name, sizeof(io->name) - 1);
+        io->name[sizeof(io->name) - 1] = 0;
     }
 }
 
@@ -222,10 +223,12 @@ int Devmapper::create(const char *name, const char *loopFile, const char *key,
     tgt->sector_start = 0;
     tgt->length = numSectors;
 
-    strcpy(tgt->target_type, "crypt");
+    strncpy(tgt->target_type, "crypt", sizeof(tgt->target_type) - 1);
+    tgt->target_type[sizeof(tgt->target_type) - 1] = 0;
 
     char *cryptParams = buffer + sizeof(struct dm_ioctl) + sizeof(struct dm_target_spec);
-    sprintf(cryptParams, "twofish %s 0 %s 0", key, loopFile);
+    snprintf(cryptParams, 4096 - (sizeof(struct dm_ioctl) + sizeof(struct dm_target_spec)),
+            "twofish %s 0 %s 0", key, loopFile);
     cryptParams += strlen(cryptParams) + 1;
     cryptParams = (char *) _align(cryptParams, 8);
     tgt->next = cryptParams - buffer;

@@ -65,7 +65,7 @@ static int do_cmd(int sock, int argc, char **argv) {
         else
             asprintf(&cmp, "\"%s\"%s", argv[i], (i == (argc -1)) ? "" : " ");
 
-        strcat(final_cmd, cmp);
+        strncat(final_cmd, cmp, sizeof(final_cmd) - strlen(final_cmd) - 1);
         free(cmp);
     }
 
