@@ -40,6 +40,11 @@
 
 static char FSCK_MSDOS_PATH[] = "/system/bin/fsck_msdos";
 static char MKDOSFS_PATH[] = "/system/bin/newfs_msdos";
+static const long SECTORS_8MB = 16384;
+static const long SECTORS_32MB = 65536;
+static const long SECTORS_1GB = 2097152;
+static const long SECTORS_2GB = 4194304;
+
 extern "C" int logwrap(int argc, const char **argv, int background);
 extern "C" int mount(const char *, const char *, const char *, unsigned long, const void *);
 
@@ -149,33 +154,39 @@ int Fat::doMount(const char *fsPath, const char *mountPoint,
     return rc;
 }
 
-int Fat::format(const char *fsPath, unsigned int numSectors) {
+int Fat::format(const char *fsPath, long numSectors) {
     int fd;
     const char *args[11];
     int rc;
 
     args[0] = MKDOSFS_PATH;
-    args[1] = "-F";
-    args[2] = "32";
-    args[3] = "-O";
-    args[4] = "android";
-    args[5] = "-c";
-    args[6] = "8";
+    args[1] = "-O";
+    args[2] = "android";
+    args[3] = "-F";
 
-    if (numSectors) {
-        char tmp[32];
-        snprintf(tmp, sizeof(tmp), "%u", numSectors);
-        const char *size = tmp;
-        args[7] = "-s";
-        args[8] = size;
-        args[9] = fsPath;
-        args[10] = NULL;
-        rc = logwrap(11, args, 1);
-    } else {
-        args[7] = fsPath;
-        args[8] = NULL;
-        rc = logwrap(9, args, 1);
-    }
+    /*
+     * Pick FAT bits and sectors/cluster reasonably
+     * in line with SD card spec
+     */
+    if (numSectors <= SECTORS_32MB)
+        args[4] = "12";
+    else if (numSectors < SECTORS_2GB)
+        args[4] = "16";
+    else
+        args[4] = "32";
+
+    args[5] = "-c";
+
+    if (numSectors <= SECTORS_8MB)
+        args[6] = "16";
+    else if (numSectors <= SECTORS_1GB)
+        args[6] = "32";
+    else
+        args[6] = "64";
+
+    args[7] = fsPath;
+    args[8] = NULL;
+    rc = logwrap(9, args, 1);
 
     if (rc == 0) {
         SLOGI("Filesystem formatted OK");
