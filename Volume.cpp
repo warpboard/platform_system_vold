@@ -247,7 +247,12 @@ int Volume::formatVol() {
         SLOGI("Formatting volume %s (%s)", getLabel(), devicePath);
     }
 
-    if (Fat::format(devicePath, 0)) {
+    if (getSectorCount(devicePath, &numSectors)) {
+        SLOGE("Failed to retrieve device size (%s)", strerror(errno));
+        goto err;
+    }
+
+    if (Fat::format(devicePath, numSectors)) {
         SLOGE("Failed to format (%s)", strerror(errno));
         goto err;
     }
