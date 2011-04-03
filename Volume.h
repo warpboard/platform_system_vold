@@ -87,6 +87,7 @@ protected:
 
 private:
     int initializeMbr(const char *deviceNode);
+    int getSectorCount(const char *deviceNode, long *numSectors);
     bool isMountpointMounted(const char *path);
     int createBindMounts();
     int doUnmount(const char *path, bool force);

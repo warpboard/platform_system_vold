@@ -588,6 +588,36 @@ out_nomedia:
     setState(Volume::State_NoMedia);
     return -1;
 }
+
+int Volume::getSectorCount(const char *deviceNode, long *numSectors) {
+    int fd;
+
+    fd = open(deviceNode, O_RDONLY);
+    if (fd < 0) {
+        SLOGE("Failed to open device (%s)", strerror(errno));
+        return -1;
+    }
+
+    /*
+     * Ask the device how many 512 byte blocks (sectors) it contains
+     */
+    if (ioctl(fd, BLKGETSIZE, numSectors)) {
+        SLOGE("Failed to get block count (%s)", strerror(errno));
+        if (close(fd)) {
+            SLOGE("Failed to close device (%s)", strerror(errno));
+        }
+        return -1;
+    }
+
+    if (close(fd))
+    {
+        SLOGE("Failed to close device (%s)", strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
 int Volume::initializeMbr(const char *deviceNode) {
     struct disk_info dinfo;
 
