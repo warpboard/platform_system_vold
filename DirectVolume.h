@@ -72,6 +72,7 @@ private:
 
     int doMountVfat(const char *deviceNode, const char *mountPoint);
 
+    int doUnmountLostMedia(int major, int minor);
 };
 
 typedef android::List<DirectVolume *> DirectVolumeCollection;
