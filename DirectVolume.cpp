@@ -257,26 +257,10 @@ void DirectVolume::handlePartitionChanged(const char *devpath, NetlinkEvent *evt
     SLOGD("Volume %s %s partition %d:%d changed\n", getLabel(), getMountpoint(), major, minor);
 }
 
-void DirectVolume::handleDiskRemoved(const char *devpath, NetlinkEvent *evt) {
-    int major = atoi(evt->findParam("MAJOR"));
-    int minor = atoi(evt->findParam("MINOR"));
-    char msg[255];
 
-    SLOGD("Volume %s %s disk %d:%d removed\n", getLabel(), getMountpoint(), major, minor);
-    snprintf(msg, sizeof(msg), "Volume %s %s disk removed (%d:%d)",
-             getLabel(), getMountpoint(), major, minor);
-    mVm->getBroadcaster()->sendBroadcast(ResponseCode::VolumeDiskRemoved,
-                                             msg, false);
-    setState(Volume::State_NoMedia);
-}
-
-void DirectVolume::handlePartitionRemoved(const char *devpath, NetlinkEvent *evt) {
-    int major = atoi(evt->findParam("MAJOR"));
-    int minor = atoi(evt->findParam("MINOR"));
+int DirectVolume::doUnmountLostMedia(int major, int minor) {
     char msg[255];
     int state;
-
-    SLOGD("Volume %s %s partition %d:%d removed\n", getLabel(), getMountpoint(), major, minor);
 
     /*
      * The framework doesn't need to get notified of
@@ -286,7 +270,7 @@ void DirectVolume::handlePartitionRemoved(const char *devpath, NetlinkEvent *evt
      */
     state = getState();
     if (state != Volume::State_Mounted && state != Volume::State_Shared) {
-        return;
+        return 0;
     }
         
     if ((dev_t) MKDEV(major, minor) == mCurrentlyMountedKdev) {
@@ -307,6 +291,7 @@ void DirectVolume::handlePartitionRemoved(const char *devpath, NetlinkEvent *evt
             SLOGE("Failed to unmount volume on bad removal (%s)", 
                  strerror(errno));
             // XXX: At this point we're screwed for now
+            return -1;
         } else {
             SLOGD("Crisis averted");
         }
@@ -324,6 +309,41 @@ void DirectVolume::handlePartitionRemoved(const char *devpath, NetlinkEvent *evt
             SLOGD("Crisis averted");
         }
     }
+
+    return 0;
+}
+
+
+void DirectVolume::handleDiskRemoved(const char *devpath, NetlinkEvent *evt) {
+    char msg[255];
+    int major = atoi(evt->findParam("MAJOR"));
+    int minor = atoi(evt->findParam("MINOR"));
+
+    SLOGD("Volume %s %s disk %d:%d removed\n", getLabel(), getMountpoint(), major, minor);
+
+    if (getState() == Volume::State_Mounted) {
+         SLOGW("Volume mounted when device was removed, unmounting...\n");
+         if (doUnmountLostMedia(major, minor))
+	     SLOGE("Failed to unmount file systems from removed disk\n");
+    }
+
+    snprintf(msg, sizeof(msg), "Volume %s %s disk removed (%d:%d)",
+             getLabel(), getMountpoint(), major, minor);
+
+    mVm->getBroadcaster()->sendBroadcast(ResponseCode::VolumeDiskRemoved,
+                                             msg, false);
+    setState(Volume::State_NoMedia);
+}
+
+void DirectVolume::handlePartitionRemoved(const char *devpath, NetlinkEvent *evt) {
+    int major = atoi(evt->findParam("MAJOR"));
+    int minor = atoi(evt->findParam("MINOR"));
+    char msg[255];
+
+    SLOGD("Volume %s %s partition %d:%d removed\n", getLabel(), getMountpoint(), major, minor);
+
+    if (doUnmountLostMedia(major, minor))
+	SLOGE("Failed to unmount file systems from detached partition\n");
 }
 
 /*
