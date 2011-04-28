@@ -42,6 +42,9 @@
 #include "Fat.h"
 #include "Process.h"
 
+static const long SECTORS_2GB = 4194304;
+static const long SECTORS_32GB = 67108864;
+
 extern "C" void dos_partition_dec(void const *pp, struct dos_partition *d);
 extern "C" void dos_partition_enc(void *pp, struct dos_partition *d);
 
@@ -214,7 +217,8 @@ int Volume::formatVol() {
     bool formatEntireDevice = (mPartIdx == -1);
     char devicePath[255];
     dev_t diskNode = getDiskDevice();
-    dev_t partNode = MKDEV(MAJOR(diskNode), (formatEntireDevice ? 1 : mPartIdx));
+    dev_t partNode = MKDEV(MAJOR(diskNode), (formatEntireDevice ? MINOR(diskNode) + 1 : mPartIdx));
+    long numSectors;
 
     setState(Volume::State_Formatting);
 
@@ -224,7 +228,12 @@ int Volume::formatVol() {
         sprintf(devicePath, "/dev/block/vold/%d:%d",
                 MAJOR(diskNode), MINOR(diskNode));
 
-        if (initializeMbr(devicePath)) {
+        if (getSectorCount(devicePath, &numSectors)) {
+            SLOGE("Failed to retrieve device size (%s)", strerror(errno));
+            goto err;
+        }
+
+        if (initializeMbr(devicePath, numSectors)) {
             SLOGE("Failed to initialize MBR (%s)", strerror(errno));
             goto err;
         }
@@ -618,7 +627,7 @@ int Volume::getSectorCount(const char *deviceNode, long *numSectors) {
     return 0;
 }
 
-int Volume::initializeMbr(const char *deviceNode) {
+int Volume::initializeMbr(const char *deviceNode, long numSectors) {
     struct disk_info dinfo;
 
     memset(&dinfo, 0, sizeof(dinfo));
@@ -632,7 +641,16 @@ int Volume::initializeMbr(const char *deviceNode) {
     dinfo.device = strdup(deviceNode);
     dinfo.scheme = PART_SCHEME_MBR;
     dinfo.sect_size = 512;
-    dinfo.skip_lba = 2048;
+    /*
+     * Set partition start reasonably in line
+     * with SD card spec
+     */
+    if (numSectors <= SECTORS_2GB)
+        dinfo.skip_lba = 128;
+    else if (numSectors <= SECTORS_32GB)
+        dinfo.skip_lba = 8192;
+    else
+        dinfo.skip_lba = 32768;
     dinfo.num_lba = 0;
     dinfo.num_parts = 1;
 
