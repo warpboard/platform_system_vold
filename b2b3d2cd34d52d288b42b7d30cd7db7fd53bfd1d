@@ -1,0 +1,8 @@
+Change-Id: Ib2b3d2cd34d52d288b42b7d30cd7db7fd53bfd1d
+Verified+1: Jean-Baptiste Queru <jbq@google.com>
+Code-Review+2: Mike Lockwood <lockwood%android.com@gtempaccount.com>
+Submitted-by: Jean-Baptiste Queru <jbq@google.com>
+Submitted-at: Thu, 29 Jul 2010 11:21:44 -0700
+Reviewed-on: https://review.source.android.com/16006
+Project: platform/system/vold
+Branch: refs/heads/master
