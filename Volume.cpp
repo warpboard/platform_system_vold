@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
+ * Copyright (C) 2012-2013 NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +47,7 @@
 #include "VolumeManager.h"
 #include "ResponseCode.h"
 #include "Fat.h"
+#include "Ntfs.h"
 #include "Process.h"
 #include "cryptfs.h"
 
@@ -230,6 +232,12 @@ int Volume::createDeviceNode(const char *path, int major, int minor) {
 }
 
 int Volume::formatVol(bool wipe) {
+
+    if (Ntfs::isNtfsPresent()) {
+        SLOGE("Volume has NTFS partition, Formatting not supported\n");
+        errno = ENODEV;
+        return -1;
+    }
 
     if (getState() == Volume::State_NoMedia) {
         errno = ENODEV;
@@ -423,9 +431,9 @@ int Volume::mountVol() {
         errno = 0;
         setState(Volume::State_Checking);
 
-        if (Fat::check(devicePath)) {
+        if (Fat::check(devicePath) && Ntfs::check(devicePath)) {
             if (errno == ENODATA) {
-                SLOGW("%s does not contain a FAT filesystem\n", devicePath);
+                SLOGW("%s does not contain a FAT or NTFS filesystem\n", devicePath);
                 continue;
             }
             errno = EIO;
@@ -436,11 +444,13 @@ int Volume::mountVol() {
         }
 
         errno = 0;
-        int gid;
+        int gid = AID_MEDIA_RW;
 
         if (Fat::doMount(devicePath, getMountpoint(), false, false, false,
-                AID_MEDIA_RW, AID_MEDIA_RW, 0007, true)) {
-            SLOGE("%s failed to mount via VFAT (%s)\n", devicePath, strerror(errno));
+                AID_MEDIA_RW, AID_MEDIA_RW, 0007, true) && 
+            Ntfs::doMount(devicePath, getMountpoint(), false, false, false,
+                AID_SYSTEM, gid, 0702, true)){
+            SLOGE("%s failed to mount via VFAT or Ntfs (%s)\n", devicePath, strerror(errno));
             continue;
         }
 
