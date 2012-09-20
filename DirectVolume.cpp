@@ -151,12 +151,21 @@ void DirectVolume::handleDiskAdded(const char *devpath, NetlinkEvent *evt) {
     mDiskMinor = atoi(evt->findParam("MINOR"));
 
     const char *tmp = evt->findParam("NPARTS");
+    const char *name = evt->findParam("DEVNAME");
     if (tmp) {
         mDiskNumParts = atoi(tmp);
     } else {
         SLOGW("Kernel block uevent missing 'NPARTS'");
         mDiskNumParts = 1;
     }
+
+    if (name && !strncmp(name, "mmcblk0boot", 11)) {
+        SLOGD("Ignore the eMMC boot disk:%s", name);
+        return;
+    }
+
+    if (mDiskNumParts > MAX_PARTITIONS)
+        mDiskNumParts = MAX_PARTITIONS;
 
     int partmask = 0;
     int i;
@@ -210,8 +219,8 @@ void DirectVolume::handlePartitionAdded(const char *devpath, NetlinkEvent *evt) 
 #ifdef PARTITION_DEBUG
     SLOGD("Dv:partAdd: part_num = %d, minor = %d\n", part_num, minor);
 #endif
-    if (part_num >= MAX_PARTITIONS) {
-        SLOGE("Dv:partAdd: ignoring part_num = %d (max: %d)\n", part_num, MAX_PARTITIONS-1);
+    if (part_num > MAX_PARTITIONS) {
+        SLOGE("Dv:partAdd: ignoring part_num = %d (max: %d)\n", part_num, MAX_PARTITIONS);
     } else {
         mPartMinors[part_num -1] = minor;
     }
@@ -251,6 +260,9 @@ void DirectVolume::handleDiskChanged(const char *devpath, NetlinkEvent *evt) {
         SLOGW("Kernel block uevent missing 'NPARTS'");
         mDiskNumParts = 1;
     }
+
+    if (mDiskNumParts > MAX_PARTITIONS)
+        mDiskNumParts = MAX_PARTITIONS;
 
     int partmask = 0;
     int i;
