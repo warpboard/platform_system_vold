@@ -99,6 +99,10 @@ int Fat::check(const char *fsPath) {
             SLOGE("Failing check after too many rechecks");
             errno = EIO;
             return -1;
+        case 8:
+            SLOGW("We open the extension partition");
+            errno = ENODATA;
+            return -1;
 
         default:
             SLOGE("Filesystem check failed (unknown exit code %d)", status);
