@@ -191,7 +191,10 @@ int VolumeManager::getObbMountPath(const char *sourceFile, char *mountPath, int 
     }
 
     memset(mountPath, 0, mountPathLen);
-    snprintf(mountPath, mountPathLen, "%s/%s", Volume::LOOPDIR, idHash);
+    int written = snprintf(mountPath, mountPathLen, "%s/%s", Volume::LOOPDIR, idHash);
+    if (written < 0 || written >= mountPathLen) {
+        return -1;
+    }
 
     if (access(mountPath, F_OK)) {
         errno = ENOENT;
@@ -215,7 +218,11 @@ int VolumeManager::getAsecMountPath(const char *id, char *buffer, int maxlen) {
         return -1;
     }
 
-    snprintf(buffer, maxlen, "%s/%s", Volume::ASECDIR, id);
+    int written = snprintf(buffer, maxlen, "%s/%s", Volume::ASECDIR, id);
+    if (written < 0 || written >= maxlen) {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -233,7 +240,11 @@ int VolumeManager::getAsecFilesystemPath(const char *id, char *buffer, int maxle
         return -1;
     }
 
-    snprintf(buffer, maxlen, "%s", asecFileName);
+    int written = snprintf(buffer, maxlen, "%s", asecFileName);
+    if (written < 0 || written >= maxlen) {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -281,7 +292,10 @@ int VolumeManager::createAsec(const char *id, unsigned int numSectors, const cha
 
     const char *asecDir = isExternal ? Volume::SEC_ASECDIR_EXT : Volume::SEC_ASECDIR_INT;
 
-    snprintf(asecFileName, sizeof(asecFileName), "%s/%s.asec", asecDir, id);
+    int written = snprintf(asecFileName, sizeof(asecFileName), "%s/%s.asec", asecDir, id);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(asecFileName)) {
+        return -1;
+    }
 
     if (!access(asecFileName, F_OK)) {
         SLOGE("ASEC file '%s' currently exists - destroy it first! (%s)",
@@ -397,7 +411,16 @@ int VolumeManager::createAsec(const char *id, unsigned int numSectors, const cha
 
         char mountPoint[255];
 
-        snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+        int written = snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+        if (written < 0 || static_cast<size_t>(written) >= sizeof(mountPoint)) {
+            if (cleanupDm) {
+                Devmapper::destroy(idHash);
+            }
+            Loop::destroyByDevice(loopDevice);
+            unlink(asecFileName);
+            return -1;
+        }
+
         if (mkdir(mountPoint, 0000)) {
             if (errno != EEXIST) {
                 SLOGE("Mountpoint creation failed (%s)", strerror(errno));
@@ -474,7 +497,10 @@ int VolumeManager::finalizeAsec(const char *id) {
         return -1;
     }
 
-    snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+    int written = snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(mountPoint)) {
+        return -1;
+    }
 
     int result = 0;
     if (sb.c_opts & ASEC_SB_C_OPTS_EXT4) {
@@ -527,7 +553,10 @@ int VolumeManager::fixupAsecPermissions(const char *id, gid_t gid, const char* f
         return -1;
     }
 
-    snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+    int written = snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(mountPoint)) {
+        return -1;
+    }
 
     int result = 0;
     if ((sb.c_opts & ASEC_SB_C_OPTS_EXT4) == 0) {
@@ -620,14 +649,22 @@ int VolumeManager::renameAsec(const char *id1, const char *id2) {
 
     asprintf(&asecFilename2, "%s/%s.asec", dir, id2);
 
-    snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id1);
+    int written = snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id1);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(mountPoint)) {
+        goto out_err;
+    }
+
     if (isMountpointMounted(mountPoint)) {
         SLOGW("Rename attempt when src mounted");
         errno = EBUSY;
         goto out_err;
     }
 
-    snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id2);
+    written = snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id2);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(mountPoint)) {
+        goto out_err;
+    }
+
     if (isMountpointMounted(mountPoint)) {
         SLOGW("Rename attempt when dst mounted");
         errno = EBUSY;
@@ -664,7 +701,10 @@ int VolumeManager::unmountAsec(const char *id, bool force) {
         return -1;
     }
 
-    snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+    int written = snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(mountPoint)) {
+        return -1;
+    }
 
     char idHash[33];
     if (!asecHash(id, idHash, sizeof(idHash))) {
@@ -684,7 +724,10 @@ int VolumeManager::unmountObb(const char *fileName, bool force) {
         return -1;
     }
 
-    snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::LOOPDIR, idHash);
+    int written = snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::LOOPDIR, idHash);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(mountPoint)) {
+        return -1;
+    }
 
     return unmountLoopImage(fileName, idHash, fileName, mountPoint, force);
 }
@@ -780,7 +823,10 @@ int VolumeManager::destroyAsec(const char *id, bool force) {
         return -1;
     }
 
-    snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+    int written = snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(mountPoint)) {
+        return -1;
+    }
 
     if (isMountpointMounted(mountPoint)) {
         if (mDebug) {
@@ -867,7 +913,10 @@ int VolumeManager::mountAsec(const char *id, const char *key, int ownerUid) {
         return -1;
     }
 
-    snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+    int written = snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::ASECDIR, id);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(mountPoint)) {
+        return -1;
+    }
 
     if (isMountpointMounted(mountPoint)) {
         SLOGE("ASEC %s already mounted", id);
@@ -997,7 +1046,10 @@ int VolumeManager::mountObb(const char *img, const char *key, int ownerUid) {
         return -1;
     }
 
-    snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::LOOPDIR, idHash);
+    int written = snprintf(mountPoint, sizeof(mountPoint), "%s/%s", Volume::LOOPDIR, idHash);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(mountPoint)) {
+        return -1;
+    }
 
     if (isMountpointMounted(mountPoint)) {
         SLOGE("Image %s already mounted", img);
@@ -1209,9 +1261,13 @@ int VolumeManager::shareVolume(const char *label, const char *method) {
 
     int fd;
     char nodepath[255];
-    snprintf(nodepath,
+    int written = snprintf(nodepath,
              sizeof(nodepath), "/dev/block/vold/%d:%d",
              MAJOR(d), MINOR(d));
+
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(nodepath)) {
+        return -1;
+    }
 
     if ((fd = open(MASS_STORAGE_FILE_PATH, O_WRONLY)) < 0) {
         SLOGE("Unable to open ums lunfile (%s)", strerror(errno));
