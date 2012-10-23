@@ -148,6 +148,9 @@ void DirectVolume::handleDiskAdded(const char *devpath, NetlinkEvent *evt) {
         mDiskNumParts = 1;
     }
 
+    if (mDiskNumParts > MAX_PARTITIONS)
+        mDiskNumParts = MAX_PARTITIONS;
+
     char msg[255];
 
     int partmask = 0;
@@ -207,8 +210,8 @@ void DirectVolume::handlePartitionAdded(const char *devpath, NetlinkEvent *evt) 
 #ifdef PARTITION_DEBUG
     SLOGD("Dv:partAdd: part_num = %d, minor = %d\n", part_num, minor);
 #endif
-    if (part_num >= MAX_PARTITIONS) {
-        SLOGE("Dv:partAdd: ignoring part_num = %d (max: %d)\n", part_num, MAX_PARTITIONS-1);
+    if (part_num > MAX_PARTITIONS) {
+        SLOGE("Dv:partAdd: ignoring part_num = %d (max: %d)\n", part_num, MAX_PARTITIONS);
     } else {
         mPartMinors[part_num -1] = minor;
     }
@@ -248,6 +251,9 @@ void DirectVolume::handleDiskChanged(const char *devpath, NetlinkEvent *evt) {
         SLOGW("Kernel block uevent missing 'NPARTS'");
         mDiskNumParts = 1;
     }
+
+    if (mDiskNumParts > MAX_PARTITIONS)
+        mDiskNumParts = MAX_PARTITIONS;
 
     int partmask = 0;
     int i;
