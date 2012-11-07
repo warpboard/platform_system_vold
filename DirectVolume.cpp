@@ -372,11 +372,14 @@ int DirectVolume::getDeviceNodes(dev_t *devs, int max) {
             return 1;
         }
 
-        int i;
-        for (i = 0; i < mDiskNumParts; i++) {
+        int i, j;
+        for (i = 0, j = 0; i < mDiskNumParts; i++) {
             if (i == max)
                 break;
-            devs[i] = MKDEV(mDiskMajor, mPartMinors[i]);
+            //Do not make dev for those non valid partition
+            if (mPartMinors[i] == -1)
+                continue;
+            devs[j++] = MKDEV(mDiskMajor, mPartMinors[i]);
         }
         return mDiskNumParts;
     }
