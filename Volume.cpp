@@ -44,6 +44,7 @@
 #include "VolumeManager.h"
 #include "ResponseCode.h"
 #include "Fat.h"
+#include "Ntfs.h"
 #include "Process.h"
 #include "cryptfs.h"
 
@@ -398,9 +399,18 @@ int Volume::mountVol() {
         errno = 0;
         setState(Volume::State_Checking);
 
+        int ntfs = 0;
         if (Fat::check(devicePath)) {
             if (errno == ENODATA) {
                 SLOGW("%s does not contain a FAT filesystem\n", devicePath);
+                /* try the NTFS filesystem */
+                if (!Ntfs::check(devicePath)) {
+                    ntfs = 1;
+                    SLOGI("%s contain a NTFS filesystem\n", devicePath);
+                    goto mnt;
+                } else
+                    SLOGW("%s does not contain a NTFS filesystem\n", devicePath);
+
                 continue;
             }
             errno = EIO;
@@ -410,6 +420,7 @@ int Volume::mountVol() {
             return -1;
         }
 
+mnt:
         /*
          * Mount the device on our internal staging mountpoint so we can
          * muck with it before exposing it to non priviledged users.
@@ -425,7 +436,13 @@ int Volume::mountVol() {
             // For secondary external storage we keep things locked up.
             gid = AID_MEDIA_RW;
         }
-        if (Fat::doMount(devicePath, "/mnt/secure/staging", false, false, false,
+        if (ntfs) {
+            if (Ntfs::doMount(devicePath, "/mnt/secure/staging", false, false, false,
+                    AID_SYSTEM, gid, 0702, true)) {
+                SLOGE("%s failed to mount via NTFS (%s)\n", devicePath, strerror(errno));
+                continue;
+            }
+        } else if (Fat::doMount(devicePath, "/mnt/secure/staging", false, false, false,
                 AID_SYSTEM, gid, 0702, true)) {
             SLOGE("%s failed to mount via VFAT (%s)\n", devicePath, strerror(errno));
             continue;
