@@ -27,6 +27,7 @@ private:
     int mState;
 
 public:
+    static const int MAX_PARTITIONS = 32;
     static const int State_Init       = -1;
     static const int State_NoMedia    = 0;
     static const int State_Idle       = 1;
