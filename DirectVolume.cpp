@@ -153,16 +153,17 @@ void DirectVolume::handleDiskAdded(const char *devpath, NetlinkEvent *evt) {
 
     const char *tmp = evt->findParam("NPARTS");
     const char *name = evt->findParam("DEVNAME");
+
+    if (name && (!strncmp(name, "mmcblk0boot", 11) || (!strncmp(name, "mmcblk1boot", 11)))) {
+        SLOGD("Ignore the eMMC boot disk:%s", name);
+        return;
+    }
+
     if (tmp) {
         mDiskNumParts = atoi(tmp);
     } else {
         SLOGW("Kernel block uevent missing 'NPARTS'");
         mDiskNumParts = 1;
-    }
-
-    if (name && !strncmp(name, "mmcblk0boot", 11)) {
-        SLOGD("Ignore the eMMC boot disk:%s", name);
-        return;
     }
 
     if (mDiskNumParts > MAX_PARTITIONS)
