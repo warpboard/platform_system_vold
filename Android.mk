@@ -21,7 +21,8 @@ common_src_files := \
 common_c_includes := \
 	$(KERNEL_HEADERS) \
 	system/extras/ext4_utils \
-	external/openssl/include
+	external/openssl/include \
+	external/scrypt/lib/crypto
 
 common_shared_libraries := \
 	libsysutils \
@@ -31,6 +32,10 @@ common_shared_libraries := \
 	libhardware_legacy \
 	liblogwrap \
 	libcrypto
+
+common_static_libraries := \
+	libfs_mgr \
+	libscrypt_static
 
 include $(CLEAR_VARS)
 
@@ -42,7 +47,7 @@ LOCAL_C_INCLUDES := $(common_c_includes)
 
 LOCAL_SHARED_LIBRARIES := $(common_shared_libraries)
 
-LOCAL_STATIC_LIBRARIES := libfs_mgr
+LOCAL_STATIC_LIBRARIES := $(common_static_libraries)
 
 LOCAL_MODULE_TAGS := eng tests
 
@@ -62,7 +67,7 @@ LOCAL_CFLAGS := -Werror=format
 
 LOCAL_SHARED_LIBRARIES := $(common_shared_libraries)
 
-LOCAL_STATIC_LIBRARIES := libfs_mgr
+LOCAL_STATIC_LIBRARIES := $(common_static_libraries)
 
 include $(BUILD_EXECUTABLE)
 
