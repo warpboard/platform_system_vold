@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
- * Copyright (C) 2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,20 +30,21 @@
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/mount.h>
+#include <sys/wait.h>
 
 #include <linux/kdev_t.h>
-#include <linux/fs.h>
 
 #define LOG_TAG "Vold"
 
 #include <cutils/log.h>
 #include <cutils/properties.h>
 
+#include <logwrap/logwrap.h>
 #include "Ntfs.h"
+#include "VoldUtil.h"
 
 static char NTFS_FIX_PATH[] = "/system/bin/ntfsfix";
 static char NTFS_MOUNT_PATH[] = "/system/bin/ntfs-3g";
-extern "C" int logwrap(int argc, const char **argv, int background);
 
 int Ntfs::check(const char *fsPath) {
 
@@ -53,6 +54,7 @@ int Ntfs::check(const char *fsPath) {
     }
 
     int rc = 0;
+    int status;
     const char *args[4];
     /* we first use -n to do ntfs detection */
     args[0] = NTFS_FIX_PATH;
@@ -60,8 +62,13 @@ int Ntfs::check(const char *fsPath) {
     args[2] = fsPath;
     args[3] = NULL;
 
-    rc = logwrap(3, args, 1);
+    rc = android_fork_execvp(ARRAY_SIZE(args), (char **)args, &status, false,
+           true);
     if (rc) {
+        errno = ENODATA;
+        return -1;
+    }
+    if (!WIFEXITED(status)) {
         errno = ENODATA;
         return -1;
     }
@@ -73,10 +80,15 @@ int Ntfs::check(const char *fsPath) {
     args[1] = fsPath;
     args[2] = NULL;
 
-    rc = logwrap(2, args, 1);
+    rc = android_fork_execvp(ARRAY_SIZE(args), (char **)args, &status, false,
+           true);
     if (rc) {
         errno = EIO;
         SLOGE("Filesystem check failed (unknown exit code %d)", rc);
+        return -1;
+    }
+    if (!WIFEXITED(status)) {
+        errno = EIO;
         return -1;
     }
 
@@ -88,6 +100,7 @@ int Ntfs::doMount(const char *fsPath, const char *mountPoint,
                  bool ro, bool remount, bool executable,
                  int ownerUid, int ownerGid, int permMask, bool createLost) {
     int rc;
+    int status;
     char mountData[255];
     const char *args[6];
 
@@ -126,12 +139,16 @@ int Ntfs::doMount(const char *fsPath, const char *mountPoint,
     args[4] = mountPoint;
     args[5] = NULL;
 
-    rc = logwrap(5, args, 1);
-
+    rc = android_fork_execvp(ARRAY_SIZE(args), (char **)args, &status, false,
+           true);
     if (rc && errno == EROFS) {
         SLOGE("%s appears to be a read only filesystem - retrying mount RO", fsPath);
         strcat(mountData, ",ro");
-        rc = logwrap(5, args, 1);
+        rc = android_fork_execvp(ARRAY_SIZE(args), (char **)args, &status, false,
+           true);
+    }
+    if (!WIFEXITED(status)) {
+        return rc;
     }
 
     if (rc == 0 && createLost) {
