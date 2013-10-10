@@ -1,0 +1,7 @@
+Code-Review+2: Kenny Root <kroot@android.com>
+Verified+1: Deckard Autoverifier <deckard@android.com>
+Submitted-by: Kenny Root <kroot@android.com>
+Submitted-at: Thu, 10 Oct 2013 15:51:11 +0000
+Reviewed-on: https://android-review.googlesource.com/61510
+Project: platform/system/vold
+Branch: refs/heads/master
