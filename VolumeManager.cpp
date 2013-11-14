@@ -1584,6 +1584,10 @@ int VolumeManager::mkdirs(char* path) {
     // Require that path lives under a volume we manage
     const char* emulated_source = getenv("EMULATED_STORAGE_SOURCE");
     const char* root = NULL;
+    if (!emulated_source) {
+        SLOGE("EMULATED_STORAGE_SOURCE is not set for mkdirs(%s)", path);
+        return -EINVAL;
+    }
     if (!strncmp(path, emulated_source, strlen(emulated_source))) {
         root = emulated_source;
     } else {
