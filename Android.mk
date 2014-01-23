@@ -20,7 +20,6 @@ common_src_files := \
 	cryptfs.c
 
 common_c_includes := \
-	$(KERNEL_HEADERS) \
 	system/extras/ext4_utils \
 	external/openssl/include \
 	external/stlport/stlport \
